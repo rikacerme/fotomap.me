@@ -94,6 +94,7 @@ export function EventDetailPage() {
           title: 'Etkinlik Yükleniyor...',
           description: 'Bu etkinlik şu anda yüklenmemiş. İnternet bağlantınızı kontrol edin.',
           organizerId: 'unknown',
+          createdBy: { id: 'unknown', name: 'Unknown', email: 'unknown@example.com' },
           status: 'draft',
           shareLink: window.location.href,
           qrCode: '',

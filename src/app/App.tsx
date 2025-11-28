@@ -39,7 +39,7 @@ export function App() {
 
   return (
     <Router>
-      <Header user={user} />
+      <Header />
       <Routes>
         <Route path="/" element={<HomePage />} />
 

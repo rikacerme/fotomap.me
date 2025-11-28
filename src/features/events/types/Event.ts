@@ -23,6 +23,7 @@ export interface EventPhoto {
   userId: string
   uploadedBy: string
   url: string
+  imageUrl: string
   fileName: string
   size: number
   uploadedAt: string

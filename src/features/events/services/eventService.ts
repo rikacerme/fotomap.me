@@ -164,6 +164,7 @@ class EventService {
         userId,
         uploadedBy: 'User', // Get from user context
         url: base64, // Store as data URI
+        imageUrl: base64, // Also store as imageUrl for compatibility
         fileName: file.name,
         size: file.size,
         uploadedAt: new Date().toISOString(),
