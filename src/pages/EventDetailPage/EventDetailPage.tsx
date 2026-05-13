@@ -5,10 +5,9 @@ import { useCurrentUser } from '@/features/auth/hooks/useAuth'
 import { PageLayout } from '@/shared/components/PageLayout'
 import { PhotoCapture } from '@/shared/components/PhotoCapture'
 import { eventService } from '@/features/events/services/eventService'
-import { useFaceDetection, useFaceSearch } from '@/features/faces/hooks/useFaceDetection'
-import { Event, EventPhoto } from '@/features/events/types'
+import { Event } from '@/features/events/types'
 import QRCode from 'qrcode.react'
-import { Copy, Check, AlertCircle, Loader, Search } from 'lucide-react'
+import { Copy, Check, AlertCircle, Loader, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export function EventDetailPage() {
@@ -20,18 +19,10 @@ export function EventDetailPage() {
   const [copied, setCopied] = useState(false)
   const [isOfflineMode, setIsOfflineMode] = useState(false)
   const [showPhotoCapture, setShowPhotoCapture] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [faceMatches, setFaceMatches] = useState<
-    Array<{ photoId: string; photo: EventPhoto; confidence: number }>
-  >([])
-  const [searchCompleted, setSearchCompleted] = useState(false)
   const [showJoinConfirm, setShowJoinConfirm] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
   const [isUserOrganizer, setIsUserOrganizer] = useState(false)
   const [isUserParticipant, setIsUserParticipant] = useState(false)
-
-  const { detectFaces } = useFaceDetection()
-  const { searchFaces } = useFaceSearch()
 
   const updateRoleStatus = (eventData: Event | null, userId: string | undefined) => {
     if (!eventData || !userId) {
@@ -125,61 +116,19 @@ export function EventDetailPage() {
   const handlePhotoCapture = async (file: File) => {
     if (!event) return
 
-    setIsProcessing(true)
-    setFaceMatches([])
-    setSearchCompleted(false)
-
     try {
-      const detectedFaces = await detectFaces(file)
-
-      if (!detectedFaces || detectedFaces.length === 0) {
-        toast.error('Fotoğrafta yüz algılanamadı. Lütfen başka bir fotoğraf deneyin.')
-        setIsProcessing(false)
-        return
-      }
-
+      // Simply upload the photo without face detection
       const uploadedPhoto = await eventService.uploadPhoto(event.id, file)
-      const uploadedEmbeddings = detectedFaces.map((face) => face.embeddings)
-      await eventService.saveFaceEmbeddings(uploadedPhoto.id, uploadedEmbeddings)
-
-      toast.success('Fotoğraf yüklendi! Yüzler aranıyor...')
-
-      const eventFaceEmbeddings = await eventService.getEventFaceEmbeddings(event.id)
-      const otherPhotosEmbeddings = eventFaceEmbeddings.filter(
-        (item) => item.photoId !== uploadedPhoto.id
-      )
-
-      if (otherPhotosEmbeddings.length === 0) {
-        toast.success('Etkinlikte karşılaştırılacak başka fotoğraf yok.')
-        setIsProcessing(false)
-        setSearchCompleted(true)
-        return
-      }
-
-      const sourceEmbedding = detectedFaces[0].embeddings
-      const matches = await searchFaces(sourceEmbedding, otherPhotosEmbeddings, 0.5)
-
-      const allPhotos = await eventService.getEventPhotos(event.id)
-      const matchedPhotos = matches.map((match) => ({
-        photoId: match.photoId,
-        photo: allPhotos.find((p) => p.id === match.photoId)!,
-        confidence: match.confidence,
-      }))
-
-      setFaceMatches(matchedPhotos)
-      setSearchCompleted(true)
-
-      if (matchedPhotos.length > 0) {
-        toast.success(`${matchedPhotos.length} eşleşme bulundu!`)
-      } else {
-        toast.success('Hiç eşleşme bulunamadı.')
-      }
-    } catch (error) {
-      console.error('Error processing photo:', error)
-      toast.error('Fotoğraf işlenirken hata oluştu')
-    } finally {
-      setIsProcessing(false)
+      
+      // Update local event state with new photo
+      const updatedEvent = { ...event, photoIds: [...event.photoIds, uploadedPhoto.id] }
+      setEvent(updatedEvent)
+      
+      toast.success('Fotoğraf başarıyla yüklendi!')
       setShowPhotoCapture(false)
+    } catch (error) {
+      console.error('Error uploading photo:', error)
+      toast.error('Fotoğraf yüklenirken hata oluştu')
     }
   }
 
@@ -267,20 +216,10 @@ export function EventDetailPage() {
           <div className="mb-8">
             <button
               onClick={() => setShowPhotoCapture(!showPhotoCapture)}
-              disabled={isProcessing}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
             >
-              {isProcessing ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  İşleniyor...
-                </>
-              ) : (
-                <>
-                  <Search className="w-4 h-4" />
-                  Fotoğraf Çek & Yüz Ara
-                </>
-              )}
+              <Upload className="w-4 h-4" />
+              Fotoğraf Yükle
             </button>
           </div>
         )}
@@ -340,69 +279,6 @@ export function EventDetailPage() {
               onPhotoCapture={handlePhotoCapture}
               onPhotoUpload={handlePhotoCapture}
             />
-          </div>
-        )}
-
-        {/* Processing Status */}
-        {isProcessing && (
-          <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-3">
-              <Loader className="w-5 h-5 text-blue-600 animate-spin" />
-              <div>
-                <p className="text-blue-900 font-semibold">Yüzler Aranıyor</p>
-                <p className="text-blue-700 text-sm mt-1">
-                  Lütfen bekleyin. Yüzleri diğer fotoğraflarla karşılaştırıyoruz...
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Face Matches Results */}
-        {searchCompleted && faceMatches.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              📍 Eşleşmeler Bulundu ({faceMatches.length})
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {faceMatches.map((match) => (
-                <div
-                  key={match.photoId}
-                  className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden"
-                >
-                  <div className="relative">
-                    <img
-                      src={match.photo.imageUrl}
-                      alt="Matched photo"
-                      className="w-full h-48 object-cover"
-                    />
-                    <div className="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                      {(match.confidence * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                  <div className="p-3">
-                    <p className="text-sm text-gray-600">
-                      {new Date(match.photo.uploadedAt).toLocaleDateString('tr-TR')}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Benzerlik: {(match.confidence * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* No Matches Found */}
-        {searchCompleted && faceMatches.length === 0 && (
-          <div className="mb-8 p-6 bg-gray-50 border border-gray-200 rounded-lg text-center">
-            <p className="text-gray-600 font-semibold">
-              😔 Hiç eşleşme bulunamadı
-            </p>
-            <p className="text-gray-500 text-sm mt-2">
-              Bu kişi etkinliğin diğer fotoğraflarında görünmüyor.
-            </p>
           </div>
         )}
 

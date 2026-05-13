@@ -4,11 +4,15 @@ import { Camera, RotateCcw, Upload, X } from 'lucide-react'
 interface PhotoCaptureProps {
   onPhotoCapture?: (file: File) => void
   onPhotoUpload?: (file: File) => void
+  maxPhotos?: number
+  currentPhotoCount?: number
 }
 
 export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
   onPhotoCapture,
   onPhotoUpload,
+  maxPhotos = 5,
+  currentPhotoCount = 0,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -102,9 +106,25 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrorMessage('Lütfen geçerli bir resim dosyası seçin')
+      // Validate file type - only JPEG/JPG allowed
+      const allowedTypes = ['image/jpeg']
+      if (!allowedTypes.includes(file.type)) {
+        setErrorMessage('Sadece JPEG/JPG dosyaları yüklenebilir. Lütfen geçerli bir dosya seçin.')
+        return
+      }
+
+      // Validate file extension
+      const fileName = file.name.toLowerCase()
+      if (!fileName.endsWith('.jpg') && !fileName.endsWith('.jpeg')) {
+        setErrorMessage('Sadece .jpg ve .jpeg uzantılı dosyalar desteklenir.')
+        return
+      }
+
+      // Validate quota
+      if (currentPhotoCount >= maxPhotos) {
+        setErrorMessage(
+          `Fotoğraf limitine ulaştınız (${currentPhotoCount}/${maxPhotos}). Daha fazla fotoğraf yüklemek için paketinizi yükseltin.`
+        )
         return
       }
 
@@ -135,9 +155,14 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
 
   return (
     <div className="w-full bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold text-gray-800 mb-4">
-        📸 Fotoğraf Çek
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-semibold text-gray-800">
+          📸 Fotoğraf Çek
+        </h3>
+        <div className="text-sm text-gray-600">
+          <span className="font-semibold">{currentPhotoCount}</span>/{maxPhotos} fotoğraf
+        </div>
+      </div>
 
       {/* Error Message */}
       {errorMessage && (
@@ -238,7 +263,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept=".jpg,.jpeg,image/jpeg"
             className="hidden"
             onChange={handleFileUpload}
           />
